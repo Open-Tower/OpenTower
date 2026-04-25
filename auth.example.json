@@ -1,0 +1,20 @@
+{
+  "active_provider": "openai-compatible",
+  "providers": {
+    "anthropic": {
+      "model": "claude-sonnet-4-20250514",
+      "api_base_url": "https://api.anthropic.com/v1/messages",
+      "api_key": "YOUR_ANTHROPIC_API_KEY"
+    },
+    "openai-compatible": {
+      "model": "gpt-4o-mini",
+      "api_base_url": "https://api.openai.com/v1",
+      "api_key": "YOUR_OPENAI_COMPATIBLE_API_KEY"
+    },
+    "ollama": {
+      "model": "qwen3:8b",
+      "api_base_url": "http://localhost:11434/api",
+      "api_key": ""
+    }
+  }
+}

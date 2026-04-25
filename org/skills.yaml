@@ -1,0 +1,44 @@
+workflows:
+  - id: disk-inspection
+    category: inspect
+    summary: Inspect filesystem usage, storage pressure, and block-device layout.
+    default_agents: [intent-parser, security-guard, command-planner, result-analyst]
+    handoff_chain: [intent-parser, security-guard, command-planner, result-analyst]
+    acceptance_checks: [df_parsed, hot_partition_flagged, natural_language_summary]
+    example_prompts:
+      - 查看磁盘使用情况
+      - 哪个分区快满了
+      - 检查服务器存储空间
+
+  - id: file-search
+    category: inspect
+    summary: Find files, locate configuration, or search file contents safely.
+    default_agents: [intent-parser, security-guard, command-planner, result-analyst]
+    handoff_chain: [intent-parser, security-guard, command-planner, result-analyst]
+    acceptance_checks: [search_scope_validated, results_summarized, dangerous_write_blocked]
+    example_prompts:
+      - 找到所有 nginx 配置文件
+      - 查找 /var/log 下的所有错误日志
+      - 搜索包含 "database" 的文件
+
+  - id: process-port-inspection
+    category: inspect
+    summary: Inspect service status, port ownership, and high-memory processes.
+    default_agents: [intent-parser, security-guard, command-planner, result-analyst]
+    handoff_chain: [intent-parser, security-guard, command-planner, result-analyst]
+    acceptance_checks: [service_or_port_detected, process_output_summarized, natural_language_feedback]
+    example_prompts:
+      - 哪些进程占用 80 端口
+      - 查看 nginx 进程是否在运行
+      - 显示占用内存最多的 5 个进程
+
+  - id: user-management
+    category: operate
+    summary: Create, inspect, update, or delete normal Linux users with safety gates.
+    default_agents: [intent-parser, security-guard, command-planner, result-analyst]
+    handoff_chain: [intent-parser, security-guard, command-planner, result-analyst]
+    acceptance_checks: [user_target_parsed, permissions_respected, risky_change_confirmed]
+    example_prompts:
+      - 创建一个名为 dev01 的用户
+      - 删除用户 test_user
+      - 给用户 dev01 加入 docker 组

@@ -1,0 +1,29 @@
+[build-system]
+requires = ["setuptools>=68.0", "wheel"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "opentower"
+version = "0.1.0"
+description = "OpenTower Linux Ops multi-agent CLI"
+readme = "README.md"
+requires-python = ">=3.11"
+authors = [{name = "OpenTower Team"}]
+dependencies = [
+  "pyyaml>=6.0"
+]
+
+[project.optional-dependencies]
+dev = [
+  "pytest>=8.0"
+]
+
+[project.scripts]
+opentower = "opentower_cli.cli:main"
+
+[tool.setuptools.package-dir]
+"" = "runtime"
+
+[tool.setuptools.packages.find]
+where = ["runtime"]
+include = ["opentower_cli*"]

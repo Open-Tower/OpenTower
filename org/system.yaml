@@ -1,0 +1,30 @@
+system:
+  name: OpenTower Linux Ops
+  mode: cli-first
+  language: zh-CN
+  mission: Securely manage Linux servers through a deterministic multi-agent workflow.
+
+execution:
+  shell: bash
+  default_timeout_seconds: 30
+  disk_warning_threshold: 80
+  remote_execution:
+    enabled: false
+    note: SSH is a planned extension hook. The first release executes locally through bash.
+
+agents:
+  - id: intent-parser
+    role: Intent Parser
+    summary: Route natural-language Linux requests into a supported workflow and structured operation.
+
+  - id: security-guard
+    role: Security Guard
+    summary: Enforce hard safety rules, risk grading, and confirmation requirements.
+
+  - id: command-planner
+    role: Command Planner
+    summary: Generate constrained Linux command plans from structured intent.
+
+  - id: result-analyst
+    role: Result Analyst
+    summary: Turn command output into natural-language conclusions, warnings, and next steps.
