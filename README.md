@@ -1,51 +1,12 @@
 # OpenTower Linux Ops
 
-OpenTower is a CLI-first Linux operations assistant that routes natural-language requests into a fixed, auditable workflow. This repository intentionally keeps the product surface narrow: a small set of Linux inspection and user-management tasks, model-assisted recovery for in-scope paraphrases, and explicit structured rejection for unsupported or risky requests.
+OpenTower Linux Ops is a CLI-first Linux operations assistant. It accepts natural-language requests, routes them into a fixed multi-stage workflow, applies safety checks before execution, and returns structured, human-readable results.
 
-## Command Surface
+This repository keeps the runtime surface intentionally narrow and audited. It focuses on a small set of Linux inspection and user-management tasks, model-assisted recovery for in-scope paraphrases, and structured handling for requests that fall outside the shipped workflow set or cross safety boundaries.
 
-The shipped user-facing commands are:
+## What It Does
 
-- `workflow`
-- `dispatch`
-- `console`
-- `provider-status`
-- `auth`
-
-Natural-language input is the default entrypoint:
-
-```bash
-python -m opentower_cli "show disk usage"
-python -m opentower_cli "find nginx config files"
-python -m opentower_cli "check sshd service status"
-python -m opentower_cli "show cpu usage"
-```
-
-Slash-prefixed commands remain available:
-
-```bash
-python -m opentower_cli /workflow
-python -m opentower_cli /provider-status
-python -m opentower_cli /auth
-```
-
-## Routing Model
-
-Requests move through a three-stage routing chain:
-
-1. `local_rule`: deterministic parser for the shipped Linux ops workflows.
-2. `llm_normalizer`: remaps in-scope paraphrases onto already-implemented operations.
-3. `fallback_research`: low-risk, read-only recovery for a small set of runtime inspection tasks.
-
-Every dispatch result now exposes:
-
-- `resolution_status`
-- `resolution_source`
-- `resolution_reason`
-
-This keeps unsupported behavior explicit instead of failing with a raw parser error.
-
-## Supported Workflows
+Current workflow surface:
 
 - `disk-inspection`
   - `disk_usage`
@@ -54,40 +15,122 @@ This keeps unsupported behavior explicit instead of failing with a raw parser er
   - `filename_search`
   - `content_search`
   - `inspect_permissions`
-  - `tail_log` (read-only fallback)
-  - `recent_error_scan` (read-only fallback)
+  - `tail_log` via read-only fallback
+  - `recent_error_scan` via read-only fallback
   - `delete_path` and `chmod_recursive` remain guarded by the security layer
 - `process-port-inspection`
   - `port_lookup`
   - `top_memory`
   - `service_status`
-  - `top_cpu` (read-only fallback)
-  - `load_average` (read-only fallback)
-  - `uptime_summary` (read-only fallback)
+  - `top_cpu` via read-only fallback
+  - `load_average` via read-only fallback
+  - `uptime_summary` via read-only fallback
 - `user-management`
   - `list_users`
   - `inspect_user`
-  - `create_user` (confirmation required)
-  - `add_user_to_group` (confirmation required)
+  - `create_user`
+  - `add_user_to_group`
   - `delete_user`
   - `batch_delete_users`
 
-## Safety Policy
+The fixed agent chain is:
 
-- High-risk writes are blocked or forced through explicit confirmation.
-- User creation and group-membership changes now also route through confirmation instead of executing immediately.
-- The fallback research path is read-only by design.
-- Requests such as `restart nginx service`, `install nginx`, `reboot the machine`, and firewall/package-management actions remain unsupported.
-- Log-tail requests no longer misroute into destructive permission-changing operations.
-- Operation metadata and confirmation replay now share a centralized catalog and persisted execution context, which reduces drift across normalizer, fallback, and confirmation resolution.
+- `intent-parser`
+- `security-guard`
+- `command-planner`
+- `result-analyst`
 
-## Provider Setup
+## Current Scope
 
-Install the package in editable mode:
+OpenTower keeps the runtime surface intentionally narrow and explicit.
+
+Today it focuses on:
+
+- Linux inspection and troubleshooting requests that map onto the shipped workflow catalog
+- confirmation-gated user and permission operations
+- structured routing, safety checks, command planning, and readable result summaries
+- structured handling when a request does not map onto the current workflow set
+
+## Routing Model
+
+Every request goes through a three-stage routing chain:
+
+1. `local_rule`
+   Deterministic parsing for the shipped Linux ops workflows.
+2. `llm_normalizer`
+   Maps in-scope paraphrases back onto already-implemented operations.
+3. `fallback_research`
+   Read-only recovery for a small set of low-risk inspection tasks.
+
+Every dispatch result exposes:
+
+- `resolution_status`
+- `resolution_source`
+- `resolution_reason`
+
+Current resolution sources are:
+
+- `local_rule`
+- `llm_normalizer`
+- `fallback_research`
+
+## Safety Model
+
+- High-risk writes are either blocked or forced through explicit confirmation.
+- `create_user` and `add_user_to_group` now go through the confirmation flow instead of executing immediately.
+- Critical destructive requests such as deleting core system paths are blocked before command generation.
+- Fallback behavior is read-only by design.
+
+The current architecture also centralizes operation metadata and confirmation replay context. The normalizer, fallback path, and confirmation resolution now share the same operation catalog and persisted execution context, which reduces drift across routing and replay stages.
+
+## CLI Surface
+
+User-facing commands:
+
+- `workflow`
+- `dispatch`
+- `console`
+- `provider-status`
+- `auth`
+
+Natural-language input is the default entrypoint. These are equivalent ways to use the tool:
+
+```bash
+python -m opentower_cli "show disk usage"
+python -m opentower_cli "find nginx config files"
+python -m opentower_cli "check sshd service status"
+python -m opentower_cli "show cpu usage"
+```
+
+```bash
+python -m opentower_cli dispatch --objective "show disk usage" --execute
+```
+
+With no arguments, the CLI starts the interactive console:
+
+```bash
+python -m opentower_cli
+```
+
+Slash-prefixed commands are also accepted:
+
+```bash
+python -m opentower_cli /workflow
+python -m opentower_cli /provider-status
+python -m opentower_cli /auth
+```
+
+## Installation
+
+Requires Python `3.11+`.
+
+Install in editable mode:
 
 ```bash
 python -m pip install -e .[dev]
 ```
+
+## Provider Configuration
 
 Create a local provider profile:
 
@@ -101,48 +144,44 @@ On PowerShell:
 Copy-Item auth.example.json auth.json
 ```
 
-Then edit `auth.json` and fill in the provider, model, API base URL, and API key you actually want to use.
+Then edit `auth.json` and set the provider, model, API base URL, and API key you want to use.
+
+Supported providers:
+
+- `anthropic`
+- `openai-compatible`
+- `ollama`
+
+For `openai-compatible` endpoints, OpenTower can auto-select a chat-capable model when `model` is omitted and the provider exposes `/models`.
 
 Useful checks:
 
 ```bash
 python -m opentower_cli auth
 python -m opentower_cli provider-status
-python scripts/run_nl_eval.py --fixture-profile core
-python scripts/run_nl_eval.py --fixture-profile model --with-model --limit 20
-python scripts/run_wsl_smoke.py
 ```
-
-Notes:
-
-- `auth.example.json` is the committed template.
-- `auth.json` is local-only and already ignored by Git.
-- For `openai-compatible` endpoints, OpenTower can auto-select a chat-capable model when `model` is omitted and the provider exposes `/models`. This helps with DeepSeek-compatible deployments.
 
 ## Example Requests
 
-Direct natural-language entry:
+Read-only inspection:
 
 ```bash
 python -m opentower_cli "show disk usage"
 python -m opentower_cli "search for database in /etc"
 python -m opentower_cli "check sshd service status"
-python -m opentower_cli "show cpu usage"
 python -m opentower_cli "show load average"
 python -m opentower_cli "tail the latest syslog log"
 ```
 
-Explicit dispatch:
+Confirmation-gated requests:
 
 ```bash
-python -m opentower_cli dispatch --objective "show cpu usage" --execute
-python -m opentower_cli dispatch --objective "check sshd service status" --execute
-python -m opentower_cli dispatch --objective "restart nginx service" --execute
+python -m opentower_cli "create user dev01"
+python -m opentower_cli "add user dev01 to docker group"
+python -m opentower_cli "chmod 777 /tmp/demo"
 ```
 
-The last example is expected to return `resolution_status: unsupported`.
-
-## Verification
+## Evaluation and Verification
 
 Current local verification for the `2026-04-26` snapshot:
 
@@ -152,12 +191,20 @@ Current local verification for the `2026-04-26` snapshot:
 - `python scripts/run_nl_eval.py --fixture-profile model` -> `228/228 passed`
 - `python scripts/run_nl_eval.py --fixture-profile model --with-model --limit 20` -> `20/20 passed`
 - `python scripts/run_wsl_smoke.py` -> `10/10 passed`
-- WSL real-execution rounded report derived from a completed 543-case run -> `499/500 passed`
+- a local rounded WSL real-execution report derived from a completed 543-case run reached `499/500 passed`
 
-## Repo Notes
+The NL evaluation corpus is layered into:
+
+- `extended`
+- `core`
+- `model`
+
+`--with-model` keeps the same replay harness but enables the configured normalizer and fallback model chain.
+
+## Repository Notes
 
 - Commit `auth.example.json`, not `auth.json`.
 - Runtime outputs under `production/` are local artifacts unless you intentionally want to version them.
-- The NL eval corpus now ships as layered `extended / core / model` JSONL fixtures; expanding them is PR-able as evaluation coverage, while new runtime support should still be promoted through reviewed changes in the parser, normalizer, or fallback agent.
-- Chinese project notes live in [README_CN.md](README_CN.md).
-- The judge-facing design overview lives in [比赛版设计说明文档.md](比赛版设计说明文档.md).
+- Evaluation corpus expansion is PR-able as test coverage. New runtime behavior should still land through reviewed parser, normalizer, fallback, planner, or safety changes.
+- Chinese documentation lives in [README_CN.md](README_CN.md).
+- The judge-facing overview lives in [比赛版设计说明文档.md](比赛版设计说明文档.md).

@@ -1,51 +1,12 @@
 # OpenTower Linux Ops
 
-OpenTower 是一个面向 Linux 运维场景的 CLI-first 助手。当前仓库刻意保持收敛，只保留一组固定、可审计的工作流：支持少量检查类和用户管理类任务，对语义接近但未命中本地规则的请求做模型归一化补救，并对越界或高风险请求给出结构化拒绝结果。
+OpenTower Linux Ops 是一个面向 Linux 运维场景的 CLI-first 自然语言助手。它接收自然语言请求，把请求路由到固定工作流，在执行前完成安全判断，并返回结构化、可读的结果。
 
-## 对外命令面
+这个仓库刻意保持收敛，运行面保持在可审计、可验证的范围内。它围绕少量已审计的 Linux 运维操作构建：支持固定范围的检查类任务和用户管理任务，对范围内但表达方式不同的请求做模型辅助归一化，并对超出当前工作流集合或触发安全边界的请求返回结构化处理结果。
 
-当前正式暴露的命令只有 5 个：
+## 当前能做什么
 
-- `workflow`
-- `dispatch`
-- `console`
-- `provider-status`
-- `auth`
-
-顶层 CLI 默认优先把自然语言当作执行目标处理：
-
-```bash
-python -m opentower_cli "查看磁盘使用情况"
-python -m opentower_cli "找到所有 nginx 配置文件"
-python -m opentower_cli "检查 sshd 服务状态"
-python -m opentower_cli "show cpu usage"
-```
-
-显式命令模式仍然支持：
-
-```bash
-python -m opentower_cli /workflow
-python -m opentower_cli /provider-status
-python -m opentower_cli /auth
-```
-
-## 三层路由
-
-当前自然语言路由链路为：
-
-1. `local_rule`：本地确定性规则解析。
-2. `llm_normalizer`：把同义改写重新映射回已实现操作。
-3. `fallback_research`：只处理低风险只读补救场景。
-
-所有 dispatch 结果都会带上：
-
-- `resolution_status`
-- `resolution_source`
-- `resolution_reason`
-
-这样即使请求不支持，也不会再直接掉到生硬的 parser error。
-
-## 当前能力范围
+当前工作流能力如下：
 
 - `disk-inspection`
   - `disk_usage`
@@ -54,97 +15,175 @@ python -m opentower_cli /auth
   - `filename_search`
   - `content_search`
   - `inspect_permissions`
-  - `tail_log`（只读 fallback）
-  - `recent_error_scan`（只读 fallback）
-  - `delete_path`、`chmod_recursive` 仍然受安全门控
+  - `tail_log`，通过只读 fallback 提供
+  - `recent_error_scan`，通过只读 fallback 提供
+  - `delete_path` 与 `chmod_recursive` 仍然受安全层约束
 - `process-port-inspection`
   - `port_lookup`
   - `top_memory`
   - `service_status`
-  - `top_cpu`（只读 fallback）
-  - `load_average`（只读 fallback）
-  - `uptime_summary`（只读 fallback）
+  - `top_cpu`，通过只读 fallback 提供
+  - `load_average`，通过只读 fallback 提供
+  - `uptime_summary`，通过只读 fallback 提供
 - `user-management`
   - `list_users`
   - `inspect_user`
-  - `create_user`（确认后执行）
-  - `add_user_to_group`（确认后执行）
+  - `create_user`
+  - `add_user_to_group`
   - `delete_user`
   - `batch_delete_users`
 
-## 安全策略
+固定 agent 链路为：
 
-- 高风险写操作要么直接阻断，要么进入二次确认。
-- 用户创建与组成员变更也进入确认流，不再直接落盘执行。
-- fallback research 只允许低风险只读动作，不负责写操作兜底。
-- `restart nginx service`、`install nginx`、`reboot the machine`、防火墙/包管理/部署类请求仍然不在当前范围内。
-- 类似“看日志”这类请求不再误路由到权限修改或删除操作。
-- operation 元数据与 confirmation replay 现在共享统一 catalog 和持久化上下文，降低了 normalizer、fallback 与确认执行之间的能力漂移。
+- `intent-parser`
+- `security-guard`
+- `command-planner`
+- `result-analyst`
 
-## Provider 配置
+## 当前范围
 
-安装开发依赖：
+OpenTower 当前保持一个明确、可控的运行范围。
+
+目前重点覆盖：
+
+- 能映射到已内置 workflow catalog 的 Linux 检查与排障请求
+- 需要显式确认的用户与权限类操作
+- 结构化路由、安全判断、命令规划和可读结果摘要
+- 对未命中当前工作流集合的请求返回结构化处理结果
+
+## 路由模型
+
+每个请求都会经过三层路由链：
+
+1. `local_rule`
+   本地确定性规则，负责命中仓库当前正式支持的工作流。
+2. `llm_normalizer`
+   把范围内的同义改写重新映射回已实现操作。
+3. `fallback_research`
+   只处理少量低风险、只读的补救型观察任务。
+
+每次 dispatch 都会返回：
+
+- `resolution_status`
+- `resolution_source`
+- `resolution_reason`
+
+当前 `resolution_source` 只会来自：
+
+- `local_rule`
+- `llm_normalizer`
+- `fallback_research`
+
+## 安全模型
+
+- 高风险写操作要么被直接阻断，要么进入显式确认流。
+- `create_user` 和 `add_user_to_group` 现在统一进入确认流，不再直接执行。
+- 删除关键系统路径这类破坏性请求会在命令规划之前直接被阻断。
+- fallback 路径按设计只允许只读行为。
+
+当前架构还进一步统一了 operation 元数据和 confirmation replay 上下文。normalizer、fallback 和确认执行现在共享同一份 operation catalog，并在确认记录中持久化原始执行上下文，从而降低路由与回放之间的能力漂移。
+
+## CLI 命令面
+
+对外命令只有：
+
+- `workflow`
+- `dispatch`
+- `console`
+- `provider-status`
+- `auth`
+
+自然语言是默认入口。下面两种写法都可以：
+
+```bash
+python -m opentower_cli "查看磁盘使用情况"
+python -m opentower_cli "找到所有 nginx 配置文件"
+python -m opentower_cli "检查 sshd 服务状态"
+python -m opentower_cli "show cpu usage"
+```
+
+```bash
+python -m opentower_cli dispatch --objective "show disk usage" --execute
+```
+
+不带参数启动时，会进入交互式 console：
+
+```bash
+python -m opentower_cli
+```
+
+也支持 `/` 开头的显式命令：
+
+```bash
+python -m opentower_cli /workflow
+python -m opentower_cli /provider-status
+python -m opentower_cli /auth
+```
+
+## 安装
+
+需要 Python `3.11+`。
+
+开发模式安装：
 
 ```bash
 python -m pip install -e .[dev]
 ```
 
-复制本地认证模板：
+## Provider 配置
+
+先复制本地配置模板：
 
 ```bash
 cp auth.example.json auth.json
 ```
 
-如果在 PowerShell 下：
+PowerShell 下：
 
 ```powershell
 Copy-Item auth.example.json auth.json
 ```
 
-然后编辑仓库根目录的 `auth.json`，填入实际使用的 provider、model、API 地址和密钥。
+然后编辑 `auth.json`，填写实际使用的 provider、model、API base URL 和 API key。
+
+当前支持的 provider：
+
+- `anthropic`
+- `openai-compatible`
+- `ollama`
+
+对 `openai-compatible` 端点，如果没有显式填写 `model` 且 provider 提供了 `/models`，OpenTower 会自动选择一个可用的 chat 模型。
 
 常用检查命令：
 
 ```bash
 python -m opentower_cli auth
 python -m opentower_cli provider-status
-python scripts/run_nl_eval.py --fixture-profile core
-python scripts/run_nl_eval.py --fixture-profile model --with-model --limit 20
-python scripts/run_wsl_smoke.py
 ```
 
-说明：
+## 示例请求
 
-- `auth.example.json` 是要提交到仓库的模板。
-- `auth.json` 是本地生效文件，已经加入 `.gitignore`。
-- 对 `openai-compatible` 端点，如果未显式填写 `model` 且提供了 `/models`，运行时会自动挑一个可用的 chat 模型。这一条对 DeepSeek 兼容接口尤其有用。
-
-## 使用示例
-
-自然语言直达：
+只读检查类：
 
 ```bash
 python -m opentower_cli "查看磁盘使用情况"
 python -m opentower_cli "搜索 /etc 下包含 database 的文件"
 python -m opentower_cli "检查 sshd 服务状态"
-python -m opentower_cli "show cpu usage"
 python -m opentower_cli "show load average"
 python -m opentower_cli "tail the latest syslog log"
 ```
 
-显式 dispatch：
+需要确认的请求：
 
 ```bash
-python -m opentower_cli dispatch --objective "show cpu usage" --execute
-python -m opentower_cli dispatch --objective "check sshd service status" --execute
-python -m opentower_cli dispatch --objective "restart nginx service" --execute
+python -m opentower_cli "create user dev01"
+python -m opentower_cli "add user dev01 to docker group"
+python -m opentower_cli "chmod 777 /tmp/demo"
 ```
 
-最后一个例子预期会返回 `resolution_status: unsupported`。
+## 评测与验证
 
-## 当前验证状态
-
-针对 `2026-04-26` 快照，当前已验证：
+针对 `2026-04-26` 快照，当前本地验证结果为：
 
 - `python -m pytest -q` -> `95 passed`
 - `python scripts/run_nl_eval.py --fixture-profile extended` -> `2009/2009 passed`
@@ -152,12 +191,20 @@ python -m opentower_cli dispatch --objective "restart nginx service" --execute
 - `python scripts/run_nl_eval.py --fixture-profile model` -> `228/228 passed`
 - `python scripts/run_nl_eval.py --fixture-profile model --with-model --limit 20` -> `20/20 passed`
 - `python scripts/run_wsl_smoke.py` -> `10/10 passed`
-- 基于一轮已完成的 `543` 条 WSL 真实执行结果裁出的整数版 `500` 条报告 -> `499/500 passed`
+- 一轮已完成的 543 条 WSL 真实执行结果裁出的整数版 500 条本地报告达到 `499/500 passed`
 
-## 提交说明
+当前自然语言评测集分为三层：
 
-- 提交代码时保留 `auth.example.json`，不要提交 `auth.json`。
-- `production/` 下的运行日志、转录、确认记录默认都按本地产物处理。
-- 自然语言评测语料现在分为 `extended / core / model` 三层 fixture；扩充这份语料本身可以直接作为 PR 提交，而新的运行时能力仍应通过 parser、normalizer 或 fallback agent 的受审代码变更进入主线。
+- `extended`
+- `core`
+- `model`
+
+`--with-model` 会在相同回放框架下启用已配置的 normalizer 与 fallback 模型链路。
+
+## 仓库说明
+
+- 提交时保留 `auth.example.json`，不要提交 `auth.json`。
+- `production/` 下的运行输出默认视为本地产物，除非你明确要版本化它们。
+- 扩充评测语料可以直接作为测试覆盖提交。新的运行时行为仍应通过 parser、normalizer、fallback、planner 或 safety 相关代码变更进入主线。
 - 英文说明见 [README.md](README.md)。
-- 评委说明文档见 [比赛版设计说明文档.md](比赛版设计说明文档.md)。
+- 面向评委的说明见 [比赛版设计说明文档.md](比赛版设计说明文档.md)。
